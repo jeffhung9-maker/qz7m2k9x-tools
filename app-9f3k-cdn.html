@@ -1,0 +1,1828 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>財務控制中心</title>
+<meta name="robots" content="noindex, nofollow, noarchive" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-is@18/umd/react-is.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/prop-types/prop-types.min.js" crossorigin></script>
+<script src="https://unpkg.com/recharts/umd/Recharts.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js" crossorigin></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  html, body, #root { min-height: 100%; }
+  body { margin: 0; background: #f8fafc; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo, useRef, useCallback } = React;
+const {
+  ComposedChart, Bar, Line, AreaChart, Area, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+} = Recharts;
+
+/* ------------------------------------------------------------------ */
+/* Minimal inline icon set (replaces lucide-react so this file has no  */
+/* extra module dependency)                                            */
+/* ------------------------------------------------------------------ */
+
+function makeIcon(children) {
+  return function IconCmp({ size = 16, className = "", strokeWidth = 2, style, title }) {
+    return (
+      <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24"
+           fill="none" stroke="currentColor" strokeWidth={strokeWidth}
+           strokeLinecap="round" strokeLinejoin="round" className={className} style={style}>
+        {title ? <title>{title}</title> : null}
+        {children}
+      </svg>
+    );
+  };
+}
+
+const Wallet = makeIcon(<><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4" /><path d="M3 5v14a2 2 0 0 0 2 2h16v-5" /><path d="M18 12a2 2 0 0 0 0 4h4v-4Z" /></>);
+const TrendingUp = makeIcon(<><polyline points="22 7 13.5 15.5 8.5 10.5 2 17" /><polyline points="16 7 22 7 22 13" /></>);
+const TrendingDown = makeIcon(<><polyline points="22 17 13.5 8.5 8.5 13.5 2 7" /><polyline points="16 17 22 17 22 11" /></>);
+const CardIcon = makeIcon(<><rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" /></>);
+const PiggyBank = makeIcon(<><path d="M19 8.5c-.7-2.6-3.3-4.5-6.5-4.5-3.6 0-6.6 2.3-7.3 5.3-1.2.1-2.2 1-2.2 2.2s1 2.1 2.2 2.2c.4 1.2 1.2 2.2 2.3 2.9V19a1 1 0 0 0 1 1h1.5a1 1 0 0 0 1-1v-.3c.5.1 1 .1 1.5.1h1.5a1 1 0 0 0 1 1H17a1 1 0 0 0 1-1v-2.8c.9-.8 1.5-1.9 1.8-3.2H20a1 1 0 0 0 1-1v-1a1 1 0 0 0-1-1Z" /><circle cx="15.5" cy="10.5" r="1" /></>);
+const AlertTriangle = makeIcon(<><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></>);
+const CheckCircle2 = makeIcon(<><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z" /><path d="m9 12 2 2 4-4" /></>);
+const Plus = makeIcon(<><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></>);
+const X = makeIcon(<><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></>);
+const Pencil = makeIcon(<path d="M17 3a2.83 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />);
+const Trash2 = makeIcon(<><path d="M3 6h18" /><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" /><line x1="10" y1="11" x2="10" y2="17" /><line x1="14" y1="11" x2="14" y2="17" /></>);
+const ChevronLeft = makeIcon(<polyline points="15 18 9 12 15 6" />);
+const ChevronRight = makeIcon(<polyline points="9 18 15 12 9 6" />);
+const Download = makeIcon(<><path d="M12 3v12" /><polyline points="7 11 12 16 17 11" /><path d="M5 20h14" /></>);
+const Upload = makeIcon(<><path d="M12 21V9" /><polyline points="7 13 12 8 17 13" /><path d="M5 20h14" /></>);
+const Settings2 = makeIcon(<><path d="M4 12h6" /><path d="M14 8h6" /><path d="M4 18h4" /><circle cx="12" cy="12" r="2" /><circle cx="18" cy="8" r="2" /><circle cx="10" cy="18" r="2" /></>);
+const Landmark = makeIcon(<><line x1="3" y1="22" x2="21" y2="22" /><line x1="6" y1="18" x2="6" y2="11" /><line x1="10" y1="18" x2="10" y2="11" /><line x1="14" y1="18" x2="14" y2="11" /><line x1="18" y1="18" x2="18" y2="11" /><polygon points="12 2 21 8 3 8" /></>);
+const Coins = makeIcon(<><circle cx="9" cy="9" r="6" /><path d="M14.5 14.5A6 6 0 1 0 8 20" /></>);
+const Bell = makeIcon(<><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></>);
+const ArrowUpRight = makeIcon(<><line x1="7" y1="17" x2="17" y2="7" /><polyline points="7 7 17 7 17 17" /></>);
+const ArrowDownRight = makeIcon(<><line x1="7" y1="7" x2="17" y2="17" /><polyline points="17 7 17 17 7 17" /></>);
+const Minus = makeIcon(<line x1="5" y1="12" x2="19" y2="12" />);
+const Loader2 = makeIcon(<path d="M21 12a9 9 0 1 1-6.219-8.56" />);
+const RotateCcw = makeIcon(<><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><polyline points="3 3 3 8 8 8" /></>);
+const CloudIcon = makeIcon(<path d="M17.5 19H9a5 5 0 1 1 1-9.9 6 6 0 0 1 11.5 2.4A4 4 0 0 1 20 19h-2.5" />);
+const Menu = makeIcon(<><line x1="4" y1="6" x2="20" y2="6" /><line x1="4" y1="12" x2="20" y2="12" /><line x1="4" y1="18" x2="20" y2="18" /></>);
+
+/* ------------------------------------------------------------------ */
+/* Constants                                                          */
+/* ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------ */
+/* Firebase (cloud sync) — optional, only used if online              */
+/* ------------------------------------------------------------------ */
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDuExnP7ofWJTQjxcCNXrgRDl_C5Dufprc",
+  authDomain: "jefffad6.firebaseapp.com",
+  projectId: "jefffad6",
+  storageBucket: "jefffad6.firebasestorage.app",
+  messagingSenderId: "355899270154",
+  appId: "1:355899270154:web:489e0d742c723ed7baebf3",
+  measurementId: "G-8L7GRWJJSW",
+};
+
+let firebaseApp = null;
+let firestoreDb = null;
+try {
+  if (window.firebase) {
+    firebaseApp = window.firebase.initializeApp(firebaseConfig);
+    firestoreDb = window.firebase.firestore();
+  }
+} catch (e) {
+  // Firebase failed to init (e.g. offline on first load) — sync will simply stay unavailable.
+}
+
+const genSyncCode = () => {
+  const bytes = new Uint8Array(9);
+  (window.crypto || window.msCrypto).getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(36).padStart(2, "0")).join("").slice(0, 14);
+};
+
+const SYNC_CODE_KEY = "finance-dashboard-sync-code";
+
+const EXPENSE_CATEGORIES = ["房貸", "租屋", "伙食", "保險", "學費", "出國費", "娛樂", "交通", "信用卡", "其他"];
+const INCOME_CATEGORIES = ["薪資", "獎金", "投資收益", "其他收入"];
+const ASSET_CATEGORIES = ["現金", "銀行存款", "股票", "ETF", "基金", "其他"];
+const LIABILITY_CATEGORIES = ["房貸", "其他貸款"];
+const PAYMENT_METHODS = ["現金", "轉帳", "信用卡", "電子支付"];
+
+const CAT_COLOR = {
+  房貸: "#3b5bdb", 租屋: "#7048e8", 伙食: "#e8590c", 保險: "#0c8599",
+  學費: "#d6336c", 出國費: "#2f9e44", 娛樂: "#f08c00", 交通: "#5c940d",
+  信用卡: "#e03131", 其他: "#868e96",
+};
+const ASSET_COLOR = { 現金: "#1971c2", 銀行存款: "#1098ad", 股票: "#5f3dc4", ETF: "#2b8a3e", 基金: "#e8590c", 其他: "#868e96" };
+
+const GREEN = "#2f9e44", RED = "#e03131", AMBER = "#e8a400", BLUE = "#3b5bdb";
+
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+const pad2 = (n) => String(n).padStart(2, "0");
+const todayISO = () => new Date().toISOString().slice(0, 10);
+const monthKeyOf = (dateStr) => (dateStr || "").slice(0, 7);
+const fmt = (n) => "$" + Math.round(Number(n) || 0).toLocaleString("zh-TW");
+const fmtSigned = (n) => (n >= 0 ? "+" : "-") + "$" + Math.round(Math.abs(n)).toLocaleString("zh-TW");
+const pctStr = (n) => (isFinite(n) ? (n * 100).toFixed(1) : "0.0") + "%";
+
+const summarizePayload = (payload) => {
+  try {
+    const d = typeof payload === "string" ? JSON.parse(payload) : payload;
+    const totalAssets = (d.assets || []).reduce((s, a) => s + Number(a.amount || 0), 0);
+    const cardUnpaid = (d.creditCards || []).reduce((s, c) => s + Number(c.unpaidAmount || 0), 0);
+    const totalLiabilities = (d.liabilities || []).filter((l) => l.category !== "信用卡未繳").reduce((s, l) => s + Number(l.amount || 0), 0) + cardUnpaid;
+    return { netWorth: totalAssets - totalLiabilities, txnCount: (d.transactions || []).length };
+  } catch (e) {
+    return null;
+  }
+};
+const fmtSyncTime = (t) => {
+  if (!t) return "未知時間";
+  const d = t.toDate ? t.toDate() : t instanceof Date ? t : new Date(t);
+  return d.toLocaleString("zh-TW");
+};
+const monthLabel = (mk) => {
+  const [y, m] = mk.split("-");
+  return `${y} 年 ${parseInt(m, 10)} 月`;
+};
+const shiftMonth = (mk, delta) => {
+  const [y, m] = mk.split("-").map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+};
+const lastNMonths = (endMonthKey, n) => {
+  const arr = [];
+  for (let i = n - 1; i >= 0; i--) arr.push(shiftMonth(endMonthKey, -i));
+  return arr;
+};
+
+/* ------------------------------------------------------------------ */
+/* Demo seed data                                                      */
+/* ------------------------------------------------------------------ */
+
+function shiftDateFromToday(days) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function buildSeed() {
+  const curMonth = monthKeyOf(todayISO());
+  const mk = curMonth;
+  const mkStr = (d) => `${mk}-${pad2(d)}`;
+
+  const assets = [
+    { id: uid(), name: "活期現金", category: "現金", amount: 200000 },
+    { id: uid(), name: "銀行存款", category: "銀行存款", amount: 800000 },
+    { id: uid(), name: "股票帳戶", category: "股票", amount: 600000 },
+    { id: uid(), name: "ETF 帳戶", category: "ETF", amount: 700000 },
+    { id: uid(), name: "基金帳戶", category: "基金", amount: 400000 },
+    { id: uid(), name: "其他資產", category: "其他", amount: 150000 },
+  ];
+  const liabilities = [
+    { id: uid(), name: "房屋貸款", category: "房貸", amount: 1150000 },
+    { id: uid(), name: "其他貸款", category: "其他貸款", amount: 33100 },
+  ];
+  const creditCards = [
+    { id: uid(), name: "國泰信用卡", currentAmount: 18500, unpaidAmount: 8500, dueDate: `${mk}-25` },
+    { id: uid(), name: "台新信用卡", currentAmount: 12300, unpaidAmount: 3200, dueDate: `${mk}-20` },
+    { id: uid(), name: "新光銀行信用卡", currentAmount: 8500, unpaidAmount: 0, dueDate: `${mk}-18` },
+    { id: uid(), name: "富邦信用卡", currentAmount: 15200, unpaidAmount: 5200, dueDate: shiftDateFromToday(3) },
+  ];
+  const fixedExpenses = [
+    { id: uid(), name: "房貸", category: "房貸", amount: 35000, dayOfMonth: 5, generatedMonths: [mk] },
+    { id: uid(), name: "租屋", category: "租屋", amount: 20000, dayOfMonth: 1, generatedMonths: [] },
+    { id: uid(), name: "保險", category: "保險", amount: 8000, dayOfMonth: 10, generatedMonths: [mk] },
+    { id: uid(), name: "學費", category: "學費", amount: 5000, dayOfMonth: 1, generatedMonths: [mk] },
+  ];
+  const transactions = [
+    { id: uid(), type: "income", date: mkStr(5), category: "薪資", name: "9月薪資", amount: 120000, method: "轉帳", note: "", isFixed: false },
+    { id: uid(), type: "expense", date: mkStr(5), category: "房貸", name: "房貸月付款", amount: 35000, method: "轉帳", note: "", isFixed: true },
+    { id: uid(), type: "expense", date: mkStr(10), category: "保險", name: "保險費", amount: 8000, method: "轉帳", note: "", isFixed: true },
+    { id: uid(), type: "expense", date: mkStr(1), category: "學費", name: "學費", amount: 5000, method: "轉帳", note: "", isFixed: true },
+    { id: uid(), type: "expense", date: mkStr(3), category: "伙食", name: "超市採買", amount: 3200, method: "信用卡", note: "", isFixed: false },
+    { id: uid(), type: "expense", date: mkStr(8), category: "伙食", name: "外食", amount: 2800, method: "信用卡", note: "", isFixed: false },
+    { id: uid(), type: "expense", date: mkStr(15), category: "伙食", name: "超市採買", amount: 3000, method: "信用卡", note: "", isFixed: false },
+    { id: uid(), type: "expense", date: mkStr(12), category: "出國費", name: "機票訂金", amount: 3000, method: "信用卡", note: "", isFixed: false },
+    { id: uid(), type: "expense", date: mkStr(14), category: "信用卡", name: "3C 週邊", amount: 10000, method: "信用卡", note: "", isFixed: false },
+    { id: uid(), type: "expense", date: mkStr(18), category: "其他", name: "雜項支出", amount: 5000, method: "現金", note: "", isFixed: false },
+  ];
+  const budgets = [
+    { id: uid(), category: "伙食", limit: 10000 },
+    { id: uid(), category: "娛樂", limit: 5000 },
+    { id: uid(), category: "交通", limit: 3000 },
+    { id: uid(), category: "出國費", limit: 20000 },
+  ];
+
+  const historyValues = [1420000, 1470000, 1510000, 1560000, 1571000, 1583000, 1596000, 1608000, 1620000, 1631000, 1642000, 1650000];
+  const months = lastNMonths(mk, 12);
+  const totalAssets0 = assets.reduce((s, a) => s + a.amount, 0);
+  const totalLiab0 = liabilities.reduce((s, l) => s + l.amount, 0);
+  const netWorthHistory = months.map((m, i) => ({
+    monthKey: m,
+    totalAssets: i === months.length - 1 ? totalAssets0 : Math.round(historyValues[i] * 1.4483),
+    totalLiabilities: i === months.length - 1 ? totalLiab0 : Math.round(historyValues[i] * 1.4483) - historyValues[i],
+    netWorth: historyValues[i],
+  }));
+
+  return { transactions, assets, liabilities, creditCards, fixedExpenses, budgets, netWorthHistory };
+}
+
+const EMPTY_STATE = {
+  transactions: [], assets: [], liabilities: [], creditCards: [],
+  fixedExpenses: [], budgets: [], netWorthHistory: [],
+};
+
+/* ------------------------------------------------------------------ */
+/* Persistence hook — uses the browser's own localStorage              */
+/* ------------------------------------------------------------------ */
+
+const STORAGE_KEY = "finance-dashboard-state-v1";
+
+function useFinanceStore() {
+  const [data, setData] = useState(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) return JSON.parse(raw);
+    } catch (e) { /* ignore corrupt data */ }
+    return buildSeed();
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) { /* storage full or blocked; ignore */ }
+  }, [data]);
+
+  return [data, setData];
+}
+
+/* ------------------------------------------------------------------ */
+/* Small building blocks                                               */
+/* ------------------------------------------------------------------ */
+
+function Card({ children, className = "", padded = true }) {
+  return (
+    <div className={`bg-white rounded-2xl border border-slate-200 ${padded ? "p-5" : ""} ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+function SectionTitle({ children, right }) {
+  return (
+    <div className="flex items-center justify-between mb-4">
+      <h3 className="text-[15px] font-semibold text-slate-800">{children}</h3>
+      {right}
+    </div>
+  );
+}
+
+function ProgressBar({ value, max, color }) {
+  const p = max > 0 ? Math.min(100, (value / max) * 100) : 0;
+  const over = value > max;
+  return (
+    <div className="w-full h-2 rounded-full bg-slate-100 overflow-hidden">
+      <div
+        className="h-full rounded-full transition-all"
+        style={{ width: `${p}%`, backgroundColor: over ? RED : color || BLUE }}
+      />
+    </div>
+  );
+}
+
+function Trend({ delta, invert = false, suffix = "" }) {
+  if (delta === null || delta === undefined || !isFinite(delta)) return null;
+  const good = invert ? delta <= 0 : delta >= 0;
+  const IconEl = delta === 0 ? Minus : good ? ArrowUpRight : ArrowDownRight;
+  const color = delta === 0 ? "text-slate-400" : good ? "text-emerald-600" : "text-red-600";
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${color}`}>
+      <IconEl size={13} strokeWidth={2.5} />
+      {fmt(Math.abs(delta))}
+      {suffix}
+    </span>
+  );
+}
+
+function IconButton({ onClick, title, children }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+    >
+      {children}
+    </button>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Generic editable list — used for assets/liabilities/cards/fixed/budgets */
+/* ------------------------------------------------------------------ */
+
+function EditableList({ columns, rows, onChange, addDefaults, renderRowExtra, addLabel = "新增項目" }) {
+  const [editingId, setEditingId] = useState(null);
+  const [draft, setDraft] = useState(null);
+  const [adding, setAdding] = useState(false);
+
+  const startEdit = (row) => { setEditingId(row.id); setDraft({ ...row }); };
+  const cancel = () => { setEditingId(null); setDraft(null); setAdding(false); };
+  const save = () => {
+    if (!draft) return;
+    if (adding) {
+      onChange([...rows, { ...draft, id: uid() }]);
+    } else {
+      onChange(rows.map((r) => (r.id === editingId ? { ...draft } : r)));
+    }
+    cancel();
+  };
+  const remove = (id) => {
+    if (window.confirm("確定要刪除這筆資料嗎？")) onChange(rows.filter((r) => r.id !== id));
+  };
+  const beginAdd = () => { setAdding(true); setEditingId("new"); setDraft({ ...addDefaults }); };
+
+  const renderField = (col) => {
+    const val = draft?.[col.key] ?? "";
+    if (col.type === "select") {
+      return (
+        <select
+          value={val}
+          onChange={(e) => setDraft({ ...draft, [col.key]: e.target.value })}
+          className="w-full text-sm border border-slate-300 rounded-lg px-2 py-1.5 bg-white"
+        >
+          {col.options.map((o) => (
+            <option key={o} value={o}>{o}</option>
+          ))}
+        </select>
+      );
+    }
+    return (
+      <input
+        type={col.type === "number" ? "number" : col.type === "date" ? "date" : "text"}
+        value={val}
+        onChange={(e) => setDraft({ ...draft, [col.key]: e.target.value })}
+        className="w-full text-sm border border-slate-300 rounded-lg px-2 py-1.5"
+      />
+    );
+  };
+
+  return (
+    <div className="space-y-1.5">
+      {rows.map((row) => (
+        <div key={row.id} className="group">
+          {editingId === row.id ? (
+            <div className="flex flex-wrap items-center gap-2 bg-slate-50 rounded-lg p-2">
+              {columns.map((col) => (
+                <div key={col.key} className="flex-1 min-w-[90px]">
+                  {renderField(col)}
+                </div>
+              ))}
+              <button onClick={save} className="text-xs font-medium text-white bg-slate-900 rounded-lg px-3 py-1.5">儲存</button>
+              <button onClick={cancel} className="text-xs font-medium text-slate-500 px-2 py-1.5">取消</button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between rounded-lg px-1 py-1.5 hover:bg-slate-50">
+              <div className="flex-1">{renderRowExtra(row)}</div>
+              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <IconButton onClick={() => startEdit(row)} title="編輯"><Pencil size={14} /></IconButton>
+                <IconButton onClick={() => remove(row.id)} title="刪除"><Trash2 size={14} /></IconButton>
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+      {adding && (
+        <div className="flex flex-wrap items-center gap-2 bg-slate-50 rounded-lg p-2">
+          {columns.map((col) => (
+            <div key={col.key} className="flex-1 min-w-[90px]">
+              {renderField(col)}
+            </div>
+          ))}
+          <button onClick={save} className="text-xs font-medium text-white bg-slate-900 rounded-lg px-3 py-1.5">新增</button>
+          <button onClick={cancel} className="text-xs font-medium text-slate-500 px-2 py-1.5">取消</button>
+        </div>
+      )}
+      {!adding && (
+        <button onClick={beginAdd} className="w-full flex items-center justify-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-800 border border-dashed border-slate-300 rounded-lg py-2 mt-1">
+          <Plus size={14} /> {addLabel}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Quick Add modal                                                    */
+/* ------------------------------------------------------------------ */
+
+function QuickAddModal({ onClose, onAddTransaction, onAddAsset, onAddLiability, creditCards, onCardSpend }) {
+  const [tab, setTab] = useState("expense");
+  const tabs = [
+    { key: "income", label: "收入" },
+    { key: "expense", label: "支出" },
+    { key: "cardSpend", label: "信用卡消費" },
+    { key: "asset", label: "資產" },
+    { key: "liability", label: "負債" },
+  ];
+
+  const [txn, setTxn] = useState({ date: todayISO(), category: EXPENSE_CATEGORIES[0], name: "", amount: "", method: "現金", note: "" });
+  const [cardTxn, setCardTxn] = useState({ date: todayISO(), cardId: creditCards[0]?.id || "", category: "信用卡", name: "", amount: "", note: "" });
+  const [asset, setAsset] = useState({ name: "", category: ASSET_CATEGORIES[0], amount: "" });
+  const [liability, setLiability] = useState({ name: "", category: LIABILITY_CATEGORIES[0], amount: "" });
+
+  useEffect(() => {
+    setTxn((t) => ({ ...t, category: tab === "income" ? INCOME_CATEGORIES[0] : EXPENSE_CATEGORIES[0] }));
+  }, [tab]);
+
+  const submit = () => {
+    if (tab === "income" || tab === "expense") {
+      if (!txn.name || !txn.amount) return;
+      onAddTransaction({ id: uid(), type: tab, date: txn.date, category: txn.category, name: txn.name, amount: Number(txn.amount), method: txn.method, note: txn.note, isFixed: false });
+    } else if (tab === "cardSpend") {
+      if (!cardTxn.name || !cardTxn.amount || !cardTxn.cardId) return;
+      onAddTransaction({ id: uid(), type: "expense", date: cardTxn.date, category: cardTxn.category, name: cardTxn.name, amount: Number(cardTxn.amount), method: "信用卡", note: cardTxn.note, isFixed: false, cardId: cardTxn.cardId });
+      onCardSpend(cardTxn.cardId, Number(cardTxn.amount));
+    } else if (tab === "asset") {
+      if (!asset.name || !asset.amount) return;
+      onAddAsset({ id: uid(), name: asset.name, category: asset.category, amount: Number(asset.amount) });
+    } else if (tab === "liability") {
+      if (!liability.name || !liability.amount) return;
+      onAddLiability({ id: uid(), name: liability.name, category: liability.category, amount: Number(liability.amount) });
+    }
+    onClose();
+  };
+
+  const inputCls = "w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-slate-800/10 focus:border-slate-400";
+  const labelCls = "text-xs font-medium text-slate-500 mb-1 block";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 pt-5">
+          <h3 className="text-base font-semibold text-slate-800">新增資料</h3>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 text-slate-400"><X size={18} /></button>
+        </div>
+        <div className="flex gap-1 px-5 pt-3 flex-wrap">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${tab === t.key ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="p-5 space-y-3">
+          {(tab === "income" || tab === "expense") && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>日期</label>
+                  <input type="date" className={inputCls} value={txn.date} onChange={(e) => setTxn({ ...txn, date: e.target.value })} />
+                </div>
+                <div>
+                  <label className={labelCls}>分類</label>
+                  <select className={inputCls} value={txn.category} onChange={(e) => setTxn({ ...txn, category: e.target.value })}>
+                    {(tab === "income" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES).map((c) => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className={labelCls}>名稱</label>
+                <input className={inputCls} value={txn.name} onChange={(e) => setTxn({ ...txn, name: e.target.value })} placeholder="例如：午餐" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>金額</label>
+                  <input type="number" className={inputCls} value={txn.amount} onChange={(e) => setTxn({ ...txn, amount: e.target.value })} placeholder="0" />
+                </div>
+                <div>
+                  <label className={labelCls}>付款方式</label>
+                  <select className={inputCls} value={txn.method} onChange={(e) => setTxn({ ...txn, method: e.target.value })}>
+                    {PAYMENT_METHODS.map((m) => <option key={m}>{m}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className={labelCls}>備註</label>
+                <input className={inputCls} value={txn.note} onChange={(e) => setTxn({ ...txn, note: e.target.value })} placeholder="選填" />
+              </div>
+            </>
+          )}
+
+          {tab === "cardSpend" && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>日期</label>
+                  <input type="date" className={inputCls} value={cardTxn.date} onChange={(e) => setCardTxn({ ...cardTxn, date: e.target.value })} />
+                </div>
+                <div>
+                  <label className={labelCls}>信用卡</label>
+                  <select className={inputCls} value={cardTxn.cardId} onChange={(e) => setCardTxn({ ...cardTxn, cardId: e.target.value })}>
+                    {creditCards.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className={labelCls}>名稱</label>
+                <input className={inputCls} value={cardTxn.name} onChange={(e) => setCardTxn({ ...cardTxn, name: e.target.value })} placeholder="例如：3C 週邊" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>金額</label>
+                  <input type="number" className={inputCls} value={cardTxn.amount} onChange={(e) => setCardTxn({ ...cardTxn, amount: e.target.value })} placeholder="0" />
+                </div>
+                <div>
+                  <label className={labelCls}>分類</label>
+                  <select className={inputCls} value={cardTxn.category} onChange={(e) => setCardTxn({ ...cardTxn, category: e.target.value })}>
+                    {EXPENSE_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+              </div>
+            </>
+          )}
+
+          {tab === "asset" && (
+            <>
+              <div>
+                <label className={labelCls}>名稱</label>
+                <input className={inputCls} value={asset.name} onChange={(e) => setAsset({ ...asset, name: e.target.value })} placeholder="例如：定存帳戶" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>分類</label>
+                  <select className={inputCls} value={asset.category} onChange={(e) => setAsset({ ...asset, category: e.target.value })}>
+                    {ASSET_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>金額</label>
+                  <input type="number" className={inputCls} value={asset.amount} onChange={(e) => setAsset({ ...asset, amount: e.target.value })} placeholder="0" />
+                </div>
+              </div>
+            </>
+          )}
+
+          {tab === "liability" && (
+            <>
+              <div>
+                <label className={labelCls}>名稱</label>
+                <input className={inputCls} value={liability.name} onChange={(e) => setLiability({ ...liability, name: e.target.value })} placeholder="例如：車貸" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelCls}>分類</label>
+                  <select className={inputCls} value={liability.category} onChange={(e) => setLiability({ ...liability, category: e.target.value })}>
+                    {LIABILITY_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelCls}>金額</label>
+                  <input type="number" className={inputCls} value={liability.amount} onChange={(e) => setLiability({ ...liability, amount: e.target.value })} placeholder="0" />
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 px-5 pb-5">
+          <button onClick={onClose} className="text-sm font-medium text-slate-500 px-4 py-2 rounded-lg hover:bg-slate-100">取消</button>
+          <button onClick={submit} className="text-sm font-medium text-white bg-slate-900 px-4 py-2 rounded-lg hover:bg-slate-800">儲存</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Metric card (top row)                                               */
+/* ------------------------------------------------------------------ */
+
+function MetricCard({ label, value, delta, invert, sub, accent, icon: IconEl, big, breakdown }) {
+  return (
+    <Card className={`flex flex-col justify-between ${big ? "ring-1 ring-slate-900/5" : ""}`}>
+      <div className="flex items-start justify-between mb-3">
+        <span className="text-xs font-medium text-slate-500">{label}</span>
+        {IconEl && <IconEl size={16} style={{ color: accent }} strokeWidth={2} />}
+      </div>
+      <div className={`font-semibold tabular-nums text-slate-900 ${big ? "text-3xl" : "text-2xl"}`} style={accent && big ? { color: accent } : {}}>
+        {value}
+      </div>
+      <div className="mt-2 flex items-center gap-2 min-h-[18px]">
+        {delta !== undefined && <Trend delta={delta} invert={invert} />}
+        {sub && <span className="text-xs text-slate-400">{sub}</span>}
+      </div>
+      {breakdown && breakdown.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5">
+          {breakdown.map((b) => (
+            <div key={b.label} className="flex items-center justify-between gap-2 text-[11px]">
+              <span className="flex items-center gap-1.5 text-slate-500 truncate">
+                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: b.color }} />
+                <span className="truncate">{b.label}</span>
+              </span>
+              <span className="tabular-nums font-medium text-slate-700 shrink-0">{fmt(b.amount)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function EmptyHint({ text }) {
+  return <div className="text-xs text-slate-400 py-4 text-center border border-dashed border-slate-200 rounded-xl">{text}</div>;
+}
+
+/* ------------------------------------------------------------------ */
+/* Manage drawer (assets / liabilities / cards / fixed / budgets / txns) */
+/* ------------------------------------------------------------------ */
+
+function ManageDrawer({ type, onClose, assets, setAssets, liabilities, setLiabilities, creditCards, setCreditCards, fixedExpenses, setFixedExpenses, budgets, setBudgets, transactions, allTransactions, setTransactions, monthKey, restoreDemo }) {
+  const titles = {
+    assets: "管理資產", liabilities: "管理負債", cards: "管理信用卡",
+    fixed: "管理固定支出", budgets: "管理預算", txns: `收支明細 · ${monthLabel(monthKey)}`,
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/40" onClick={onClose}>
+      <div className="bg-white w-full max-w-lg h-full overflow-y-auto shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
+          <h3 className="text-base font-semibold text-slate-800">{titles[type]}</h3>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 text-slate-400"><X size={18} /></button>
+        </div>
+        <div className="p-5">
+          {type === "assets" && (
+            <EditableList
+              addLabel="新增資產"
+              columns={[
+                { key: "name", label: "名稱", type: "text" },
+                { key: "category", label: "分類", type: "select", options: ASSET_CATEGORIES },
+                { key: "amount", label: "金額", type: "number" },
+              ]}
+              rows={assets}
+              addDefaults={{ name: "", category: ASSET_CATEGORIES[0], amount: 0 }}
+              onChange={setAssets}
+              renderRowExtra={(r) => (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-700">{r.name} <span className="text-slate-400 text-xs">· {r.category}</span></span>
+                  <span className="font-medium tabular-nums">{fmt(r.amount)}</span>
+                </div>
+              )}
+            />
+          )}
+          {type === "liabilities" && (
+            <EditableList
+              addLabel="新增負債"
+              columns={[
+                { key: "name", label: "名稱", type: "text" },
+                { key: "category", label: "分類", type: "select", options: LIABILITY_CATEGORIES },
+                { key: "amount", label: "金額", type: "number" },
+              ]}
+              rows={liabilities}
+              addDefaults={{ name: "", category: LIABILITY_CATEGORIES[0], amount: 0 }}
+              onChange={setLiabilities}
+              renderRowExtra={(r) => (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-700">{r.name} <span className="text-slate-400 text-xs">· {r.category}</span></span>
+                  <span className="font-medium tabular-nums">{fmt(r.amount)}</span>
+                </div>
+              )}
+            />
+          )}
+          {type === "cards" && (
+            <EditableList
+              addLabel="新增信用卡"
+              columns={[
+                { key: "name", label: "名稱", type: "text" },
+                { key: "currentAmount", label: "本期", type: "number" },
+                { key: "unpaidAmount", label: "未繳", type: "number" },
+                { key: "dueDate", label: "繳款日", type: "date" },
+              ]}
+              rows={creditCards}
+              addDefaults={{ name: "", currentAmount: 0, unpaidAmount: 0, dueDate: todayISO() }}
+              onChange={setCreditCards}
+              renderRowExtra={(r) => (
+                <div className="text-sm">
+                  <div className="text-slate-700">{r.name}</div>
+                  <div className="text-xs text-slate-400">本期 {fmt(r.currentAmount)} · 未繳 {fmt(r.unpaidAmount)} · 繳款日 {r.dueDate || "—"}</div>
+                </div>
+              )}
+            />
+          )}
+          {type === "fixed" && (
+            <EditableList
+              addLabel="新增固定支出"
+              columns={[
+                { key: "name", label: "名稱", type: "text" },
+                { key: "category", label: "分類", type: "select", options: EXPENSE_CATEGORIES },
+                { key: "amount", label: "金額", type: "number" },
+                { key: "dayOfMonth", label: "每月幾號", type: "number" },
+              ]}
+              rows={fixedExpenses}
+              addDefaults={{ name: "", category: EXPENSE_CATEGORIES[0], amount: 0, dayOfMonth: 1, generatedMonths: [] }}
+              onChange={setFixedExpenses}
+              renderRowExtra={(r) => (
+                <div className="text-sm">
+                  <div className="text-slate-700">{r.name} <span className="text-slate-400 text-xs">· 每月 {r.dayOfMonth} 號</span></div>
+                  <div className="text-xs text-slate-400">{fmt(r.amount)}</div>
+                </div>
+              )}
+            />
+          )}
+          {type === "budgets" && (
+            <EditableList
+              addLabel="新增預算"
+              columns={[
+                { key: "category", label: "分類", type: "select", options: EXPENSE_CATEGORIES },
+                { key: "limit", label: "每月上限", type: "number" },
+              ]}
+              rows={budgets}
+              addDefaults={{ category: EXPENSE_CATEGORIES[0], limit: 0 }}
+              onChange={setBudgets}
+              renderRowExtra={(r) => (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-700">{r.category}</span>
+                  <span className="font-medium tabular-nums">{fmt(r.limit)}</span>
+                </div>
+              )}
+            />
+          )}
+          {type === "txns" && (
+            <EditableList
+              addLabel="新增一筆紀錄"
+              columns={[
+                { key: "date", label: "日期", type: "date" },
+                { key: "type", label: "類型", type: "select", options: ["income", "expense"] },
+                { key: "category", label: "分類", type: "select", options: [...INCOME_CATEGORIES, ...EXPENSE_CATEGORIES] },
+                { key: "name", label: "名稱", type: "text" },
+                { key: "amount", label: "金額", type: "number" },
+                { key: "method", label: "付款方式", type: "select", options: PAYMENT_METHODS },
+              ]}
+              rows={transactions}
+              addDefaults={{ date: todayISO(), type: "expense", category: EXPENSE_CATEGORIES[0], name: "", amount: 0, method: "現金", note: "", isFixed: false }}
+              onChange={(newMonthRows) => {
+                const ids = new Set(transactions.map((t) => t.id));
+                const rest = allTransactions.filter((t) => !ids.has(t.id));
+                setTransactions([...rest, ...newMonthRows]);
+              }}
+              renderRowExtra={(r) => (
+                <div className="flex items-center justify-between text-sm w-full">
+                  <div>
+                    <div className="text-slate-700">{r.name} <span className="text-slate-400 text-xs">· {r.category}</span></div>
+                    <div className="text-xs text-slate-400">{r.date} · {r.method}</div>
+                  </div>
+                  <span className={`font-medium tabular-nums ${r.type === "income" ? "text-emerald-600" : "text-red-600"}`}>{r.type === "income" ? "+" : "-"}{fmt(r.amount)}</span>
+                </div>
+              )}
+            />
+          )}
+        </div>
+        {type === "txns" && transactions.length === 0 && (
+          <div className="px-5 pb-5">
+            <button onClick={restoreDemo} className="w-full text-xs text-slate-400 hover:text-slate-600 underline">套用示範資料</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Main App                                                            */
+/* ------------------------------------------------------------------ */
+
+function App() {
+  const [data, setData] = useFinanceStore();
+  const [monthKey, setMonthKey] = useState(monthKeyOf(todayISO()));
+  const [showAdd, setShowAdd] = useState(false);
+  const [showManage, setShowManage] = useState(null);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showSync, setShowSync] = useState(false);
+  const [syncCode, setSyncCode] = useState(() => {
+    try {
+      let code = localStorage.getItem(SYNC_CODE_KEY);
+      if (!code) {
+        code = genSyncCode();
+        localStorage.setItem(SYNC_CODE_KEY, code);
+      }
+      return code;
+    } catch (e) {
+      return genSyncCode();
+    }
+  });
+  const [syncStatus, setSyncStatus] = useState("idle"); // idle | syncing | synced | offline | error
+  const [conflict, setConflict] = useState(null); // {local:{payload,updatedAt}, remote:{payload,updatedAt}}
+  const conflictRef = useRef(null);
+  const [cloudHistory, setCloudHistory] = useState([]); // last up-to-3 archived versions from the cloud doc
+  const applyingRemoteRef = useRef(false);
+  const lastPushedRef = useRef(null);
+  const dataRef = useRef(data);
+  const localUpdatedAtRef = useRef(new Date());
+  const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    if (!data) return;
+    const realMonth = monthKeyOf(todayISO());
+    const totalAssets = data.assets.reduce((s, a) => s + Number(a.amount || 0), 0);
+    const cardUnpaid = (data.creditCards || []).reduce((s, c) => s + Number(c.unpaidAmount || 0), 0);
+    const totalLiabilities = (data.liabilities || []).filter((l) => l.category !== "信用卡未繳").reduce((s, l) => s + Number(l.amount || 0), 0) + cardUnpaid;
+    const netWorth = totalAssets - totalLiabilities;
+    const hist = data.netWorthHistory || [];
+    const idx = hist.findIndex((h) => h.monthKey === realMonth);
+    const same = idx >= 0 && hist[idx].totalAssets === totalAssets && hist[idx].totalLiabilities === totalLiabilities;
+    if (!same) {
+      const next = [...hist];
+      const entry = { monthKey: realMonth, totalAssets, totalLiabilities, netWorth };
+      if (idx >= 0) next[idx] = entry; else next.push(entry);
+      next.sort((a, b) => (a.monthKey < b.monthKey ? -1 : 1));
+      setData((d) => ({ ...d, netWorthHistory: next.slice(-24) }));
+    }
+    // eslint-disable-next-line
+  }, [data?.assets, data?.liabilities, data?.creditCards]);
+
+  useEffect(() => {
+    if (!data) return;
+    const currentRealMonth = monthKeyOf(todayISO());
+    const monthsToCheck = [shiftMonth(currentRealMonth, -1), currentRealMonth];
+    const todayDay = new Date().getDate();
+    let toAdd = [];
+    let changed = false;
+    const nextFixed = (data.fixedExpenses || []).map((f) => {
+      let gm = f.generatedMonths || [];
+      monthsToCheck.forEach((mk) => {
+        if (gm.includes(mk)) return;
+        const isCurrentMonth = mk === currentRealMonth;
+        const dayArrived = !isCurrentMonth || todayDay >= (f.dayOfMonth || 1);
+        if (!dayArrived) return;
+        toAdd.push({ id: uid(), type: "expense", date: `${mk}-${pad2(Math.min(f.dayOfMonth || 1, 28))}`, category: f.category, name: f.name, amount: Number(f.amount), method: "轉帳", note: "固定支出自動產生", isFixed: true });
+        gm = [...gm, mk];
+        changed = true;
+      });
+      return { ...f, generatedMonths: gm };
+    });
+    if (changed) {
+      setData((d) => ({ ...d, fixedExpenses: nextFixed, transactions: [...toAdd, ...d.transactions] }));
+    }
+    // eslint-disable-next-line
+  }, [data?.fixedExpenses]);
+
+  // ---- cloud sync: pull remote changes for this sync code (polling, not a live listener) ----
+  // A continuous onSnapshot listener needs a long-lived streaming connection, which some
+  // networks (corporate proxies, some routers) interfere with even when normal HTTPS requests
+  // work fine. Polling with plain one-off requests avoids that problem entirely.
+  useEffect(() => {
+    if (!firestoreDb || !syncCode) { setSyncStatus("offline"); return; }
+    let cancelled = false;
+    const docRef = firestoreDb.collection("finance-dashboards").doc(syncCode);
+
+    const pullOnce = async (isInitial) => {
+      try {
+        const snap = await docRef.get({ source: "server" });
+        if (cancelled) return;
+        if (snap.exists) {
+          const remote = snap.data();
+          setCloudHistory(Array.isArray(remote.history) ? remote.history : []);
+          try {
+            const parsed = JSON.parse(remote.payload);
+            const serialized = JSON.stringify(parsed);
+            if (serialized !== lastPushedRef.current) {
+              const localSerialized = JSON.stringify(dataRef.current);
+              if (serialized === localSerialized) {
+                // remote matches what we already have locally — just note it, nothing to resolve
+                lastPushedRef.current = serialized;
+              } else if (!conflictRef.current) {
+                // genuine divergence between this device and the cloud — ask the user which to keep
+                conflictRef.current = true;
+                setConflict({
+                  local: { payload: dataRef.current, updatedAt: localUpdatedAtRef.current },
+                  remote: { payload: parsed, updatedAt: remote.updatedAt || null },
+                });
+              }
+            }
+          } catch (e) { /* ignore malformed remote payload */ }
+        } else if (isInitial && dataRef.current) {
+          const payload = JSON.stringify(dataRef.current);
+          lastPushedRef.current = payload;
+          await docRef.set({ payload, updatedAt: firebase.firestore.FieldValue.serverTimestamp(), history: [] });
+        }
+        if (!cancelled) setSyncStatus("synced");
+      } catch (e) {
+        if (!cancelled) setSyncStatus("error");
+      }
+    };
+
+    setSyncStatus("syncing");
+    pullOnce(true);
+    const interval = setInterval(() => pullOnce(false), 20000);
+    return () => { cancelled = true; clearInterval(interval); };
+    // eslint-disable-next-line
+  }, [syncCode, firestoreDb]);
+
+  // ---- cloud sync: push local edits up (debounced), skipping echoes just received from remote ----
+  useEffect(() => {
+    dataRef.current = data;
+    if (!data) return;
+    if (applyingRemoteRef.current) { applyingRemoteRef.current = false; return; }
+    localUpdatedAtRef.current = new Date();
+    if (!firestoreDb || !syncCode || conflict) return;
+    const payload = JSON.stringify(data);
+    if (payload === lastPushedRef.current) return;
+    const t = setTimeout(() => { pushToCloud(payload); }, 800);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line
+  }, [data, syncCode, conflict]);
+
+  // Writes payloadStr as the new cloud document, archiving whatever was there before into history (max 3 entries).
+  const pushToCloud = async (payloadStr) => {
+    if (!firestoreDb || !syncCode) return;
+    const docRef = firestoreDb.collection("finance-dashboards").doc(syncCode);
+    setSyncStatus("syncing");
+    try {
+      let history = [];
+      try {
+        const snap = await docRef.get({ source: "server" });
+        if (snap.exists) {
+          const remote = snap.data();
+          history = Array.isArray(remote.history) ? remote.history : [];
+          if (remote.payload && remote.payload !== payloadStr) {
+            history = [{ payload: remote.payload, updatedAt: remote.updatedAt || null }, ...history].slice(0, 3);
+          }
+        }
+      } catch (e) { /* if we can't read the previous version, just proceed without archiving it */ }
+      lastPushedRef.current = payloadStr;
+      await docRef.set({ payload: payloadStr, updatedAt: firebase.firestore.FieldValue.serverTimestamp(), history });
+      setCloudHistory(history);
+      setSyncStatus("synced");
+    } catch (e) {
+      setSyncStatus("error");
+    }
+  };
+
+  const resolveConflictWithLocal = () => {
+    if (!conflict) return;
+    pushToCloud(JSON.stringify(conflict.local.payload));
+    conflictRef.current = false;
+    setConflict(null);
+  };
+  const resolveConflictWithRemote = () => {
+    if (!conflict) return;
+    lastPushedRef.current = JSON.stringify(conflict.remote.payload);
+    applyingRemoteRef.current = true;
+    setData(conflict.remote.payload);
+    conflictRef.current = false;
+    setConflict(null);
+  };
+
+  const restoreVersion = (entry) => {
+    if (!window.confirm("還原後，這個版本會立即變成目前的資料（現在這份資料會被存進版本記錄，還原前的都還在，不會真的消失），確定要繼續嗎？")) return;
+    try {
+      const parsed = JSON.parse(entry.payload);
+      applyingRemoteRef.current = true;
+      setData(parsed);
+      pushToCloud(entry.payload);
+    } catch (e) {
+      alert("這個版本的資料讀取失敗，無法還原。");
+    }
+  };
+
+  const switchSyncCode = (newCode) => {
+    const trimmed = (newCode || "").trim();
+    if (!trimmed) return;
+    try { localStorage.setItem(SYNC_CODE_KEY, trimmed); } catch (e) {}
+    lastPushedRef.current = null;
+    conflictRef.current = false;
+    setConflict(null);
+    setCloudHistory([]);
+    setSyncCode(trimmed);
+  };
+
+  if (!data) return null;
+
+  const { transactions, assets, liabilities, creditCards, fixedExpenses, budgets, netWorthHistory } = data;
+
+  const setTransactions = (fn) => setData((d) => ({ ...d, transactions: typeof fn === "function" ? fn(d.transactions) : fn }));
+  const setAssets = (fn) => setData((d) => ({ ...d, assets: typeof fn === "function" ? fn(d.assets) : fn }));
+  const setLiabilities = (fn) => setData((d) => ({ ...d, liabilities: typeof fn === "function" ? fn(d.liabilities) : fn }));
+  const setCreditCards = (fn) => setData((d) => ({ ...d, creditCards: typeof fn === "function" ? fn(d.creditCards) : fn }));
+  const setFixedExpenses = (fn) => setData((d) => ({ ...d, fixedExpenses: typeof fn === "function" ? fn(d.fixedExpenses) : fn }));
+  const setBudgets = (fn) => setData((d) => ({ ...d, budgets: typeof fn === "function" ? fn(d.budgets) : fn }));
+
+  const prevMonthKey = shiftMonth(monthKey, -1);
+  const txnsInMonth = (mk) => transactions.filter((t) => monthKeyOf(t.date) === mk);
+  const sumByType = (list, type) => list.filter((t) => t.type === type).reduce((s, t) => s + Number(t.amount || 0), 0);
+
+  const curTxns = txnsInMonth(monthKey);
+  const prevTxns = txnsInMonth(prevMonthKey);
+
+  const income = sumByType(curTxns, "income");
+  const expense = sumByType(curTxns, "expense");
+  const remaining = income - expense;
+  const savingsRate = income > 0 ? remaining / income : 0;
+
+  const prevIncome = sumByType(prevTxns, "income");
+  const prevExpense = sumByType(prevTxns, "expense");
+  const prevRemaining = prevIncome - prevExpense;
+
+  const totalAssets = assets.reduce((s, a) => s + Number(a.amount || 0), 0);
+  const totalCardCurrent = creditCards.reduce((s, c) => s + Number(c.currentAmount || 0), 0);
+  const totalCardUnpaid = creditCards.reduce((s, c) => s + Number(c.unpaidAmount || 0), 0);
+  const manualLiabilitiesTotal = liabilities.filter((l) => l.category !== "信用卡未繳").reduce((s, l) => s + Number(l.amount || 0), 0);
+  const totalLiabilities = manualLiabilitiesTotal + totalCardUnpaid;
+  const netWorth = totalAssets - totalLiabilities;
+
+  const prevSnapshot = netWorthHistory.find((h) => h.monthKey === prevMonthKey);
+  const netWorthDelta = prevSnapshot ? netWorth - prevSnapshot.netWorth : null;
+
+  const expenseByCategory = EXPENSE_CATEGORIES.map((cat) => {
+    const amt = curTxns.filter((t) => t.type === "expense" && t.category === cat).reduce((s, t) => s + Number(t.amount || 0), 0);
+    const prevAmt = prevTxns.filter((t) => t.type === "expense" && t.category === cat).reduce((s, t) => s + Number(t.amount || 0), 0);
+    return { category: cat, amount: amt, prevAmount: prevAmt, pctOfIncome: income > 0 ? amt / income : 0, pctOfExpense: expense > 0 ? amt / expense : 0 };
+  }).filter((c) => c.amount > 0 || c.prevAmount > 0);
+
+  const donutData = expenseByCategory.filter((c) => c.amount > 0).map((c) => ({ name: c.category, value: c.amount }));
+
+  const expenseBreakdownSorted = [...expenseByCategory].filter((c) => c.amount > 0).sort((a, b) => b.amount - a.amount);
+  const EXPENSE_BREAKDOWN_TOP_N = 5;
+  const expenseBreakdownDisplay = expenseBreakdownSorted.slice(0, EXPENSE_BREAKDOWN_TOP_N).map((c) => ({ label: c.category, amount: c.amount, color: CAT_COLOR[c.category] }));
+  const expenseBreakdownRestCount = expenseBreakdownSorted.length - EXPENSE_BREAKDOWN_TOP_N;
+  if (expenseBreakdownRestCount > 0) {
+    const restSum = expenseBreakdownSorted.slice(EXPENSE_BREAKDOWN_TOP_N).reduce((s, c) => s + c.amount, 0);
+    expenseBreakdownDisplay.push({ label: `其他 ${expenseBreakdownRestCount} 項`, amount: restSum, color: "#cbd5e1" });
+  }
+
+  const fixedTotal = fixedExpenses.reduce((s, f) => s + Number(f.amount || 0), 0);
+  const fixedRatio = income > 0 ? fixedTotal / income : 0;
+
+  const debtRatio = totalAssets > 0 ? totalLiabilities / totalAssets : 0;
+
+  const cash = assets.filter((a) => a.category === "現金" || a.category === "銀行存款").reduce((s, a) => s + Number(a.amount || 0), 0);
+  const emergencyMonths = fixedTotal > 0 ? cash / fixedTotal : 99;
+
+  const cashFlowMonths = lastNMonths(monthKey, 6);
+  const cashFlowData = cashFlowMonths.map((mk) => {
+    const list = txnsInMonth(mk);
+    const inc = sumByType(list, "income");
+    const exp = sumByType(list, "expense");
+    return { month: monthLabel(mk).replace(" 年 ", "/").replace(" 月", ""), 收入: inc, 支出: exp, 剩餘: inc - exp };
+  });
+
+  const nwMonths = lastNMonths(monthKey, 12);
+  const nwTrendData = nwMonths.map((mk) => {
+    const snap = netWorthHistory.find((h) => h.monthKey === mk);
+    if (snap) return { month: monthLabel(mk).replace(" 年 ", "/").replace(" 月", ""), 淨資產: snap.netWorth };
+    if (mk === monthKeyOf(todayISO())) return { month: monthLabel(mk).replace(" 年 ", "/").replace(" 月", ""), 淨資產: netWorth };
+    return { month: monthLabel(mk).replace(" 年 ", "/").replace(" 月", ""), 淨資產: null };
+  });
+
+  let score = 0;
+  const reasons = [], warnings = [];
+  if (savingsRate >= 0.3) { score += 30; reasons.push(`儲蓄率 ${pctStr(savingsRate)}`); }
+  else if (savingsRate >= 0.15) { score += 20; reasons.push(`儲蓄率 ${pctStr(savingsRate)}`); }
+  else if (savingsRate >= 0) { score += 10; warnings.push(`儲蓄率偏低（${pctStr(savingsRate)}）`); }
+  else { warnings.push(`本月收支為負（${pctStr(savingsRate)}）`); }
+
+  if (remaining >= 0) { score += 20; reasons.push("本月現金流為正"); }
+  else { warnings.push("本月現金流為負"); }
+
+  if (debtRatio < 0.4) { score += 20; reasons.push("負債比例正常"); }
+  else if (debtRatio < 0.6) { score += 10; warnings.push(`負債占資產 ${pctStr(debtRatio)}，略高`); }
+  else { warnings.push(`負債占資產高達 ${pctStr(debtRatio)}`); }
+
+  if (fixedRatio < 0.5) { score += 15; }
+  else if (fixedRatio < 0.7) { score += 8; warnings.push(`固定支出占收入 ${pctStr(fixedRatio)}`); }
+  else { warnings.push(`固定支出占收入高達 ${pctStr(fixedRatio)}`); }
+
+  if (emergencyMonths >= 3) { score += 15; reasons.push("有足夠緊急預備金"); }
+  else if (emergencyMonths >= 1) { score += 8; warnings.push("緊急預備金略顯不足"); }
+  else { warnings.push("緊急預備金不足 1 個月固定支出"); }
+
+  score = Math.min(100, Math.round(score));
+  const healthLabel = score >= 80 ? "良好" : score >= 60 ? "普通" : "需要留意";
+  const healthColor = score >= 80 ? GREEN : score >= 60 ? AMBER : RED;
+
+  const alerts = [];
+  const daysUntil = (dateStr) => Math.ceil((new Date(dateStr) - new Date(todayISO())) / 86400000);
+  creditCards.forEach((c) => {
+    if (c.unpaidAmount > 0 && c.dueDate) {
+      const d = daysUntil(c.dueDate);
+      if (d >= 0 && d <= 5) alerts.push({ level: d <= 3 ? "red" : "amber", text: `${c.name} ${d === 0 ? "今天" : d + " 天後"}到期，未繳 ${fmt(c.unpaidAmount)}` });
+    }
+  });
+  expenseByCategory.forEach((c) => {
+    if (c.prevAmount > 0 && c.amount > c.prevAmount * 1.15) {
+      alerts.push({ level: "amber", text: `${c.category} 支出比上月增加 ${fmt(c.amount - c.prevAmount)}` });
+    }
+  });
+  budgets.forEach((b) => {
+    const spent = curTxns.filter((t) => t.type === "expense" && t.category === b.category).reduce((s, t) => s + Number(t.amount || 0), 0);
+    const p = b.limit > 0 ? spent / b.limit : 0;
+    if (p >= 1) alerts.push({ level: "red", text: `${b.category}預算已超支 ${fmt(spent - b.limit)}` });
+    else if (p >= 0.8) alerts.push({ level: "amber", text: `${b.category}已達本月預算 ${Math.round(p * 100)}%` });
+  });
+  if (remaining > 0) alerts.push({ level: "green", text: `本月已存下 ${fmt(remaining)}` });
+  if (netWorthDelta !== null) {
+    alerts.push({ level: netWorthDelta >= 0 ? "green" : "red", text: `淨資產較上月${netWorthDelta >= 0 ? "增加" : "減少"} ${fmt(Math.abs(netWorthDelta))}` });
+  }
+
+  const alertIcon = (lvl) => lvl === "red" ? <AlertTriangle size={14} className="text-red-600 shrink-0 mt-0.5" /> : lvl === "amber" ? <AlertTriangle size={14} className="text-amber-500 shrink-0 mt-0.5" /> : <CheckCircle2 size={14} className="text-emerald-600 shrink-0 mt-0.5" />;
+
+  const addTransaction = (t) => setTransactions((list) => [t, ...list]);
+  const addAsset = (a) => setAssets((list) => [...list, a]);
+  const addLiability = (l) => setLiabilities((list) => [...list, l]);
+  const cardSpend = (cardId, amount) => setCreditCards((list) => list.map((c) => (c.id === cardId ? { ...c, currentAmount: Number(c.currentAmount) + amount, unpaidAmount: Number(c.unpaidAmount) + amount } : c)));
+
+  const generateFixedForMonth = () => {
+    const toAdd = [];
+    const nextFixed = fixedExpenses.map((f) => {
+      if (f.generatedMonths?.includes(monthKey)) return f;
+      toAdd.push({ id: uid(), type: "expense", date: `${monthKey}-${pad2(Math.min(f.dayOfMonth || 1, 28))}`, category: f.category, name: f.name, amount: Number(f.amount), method: "轉帳", note: "固定支出自動產生", isFixed: true });
+      return { ...f, generatedMonths: [...(f.generatedMonths || []), monthKey] };
+    });
+    if (toAdd.length) {
+      setTransactions((list) => [...toAdd, ...list]);
+      setFixedExpenses(nextFixed);
+    }
+  };
+
+  const downloadBlob = (blob, filename) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+  };
+  const exportJSON = () => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    downloadBlob(blob, `finance-backup-${todayISO()}.json`);
+  };
+  const exportCSV = () => {
+    const header = ["日期", "類型", "分類", "名稱", "金額", "付款方式", "備註"];
+    const rows = transactions.map((t) => [t.date, t.type === "income" ? "收入" : "支出", t.category, t.name, t.amount, t.method, (t.note || "").replace(/,/g, "，")]);
+    const csv = [header, ...rows].map((r) => r.join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+    downloadBlob(blob, `transactions-${todayISO()}.csv`);
+  };
+  const importJSON = (file) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const parsed = JSON.parse(e.target.result);
+        if (!parsed || typeof parsed !== "object") throw new Error("格式錯誤");
+        setData({ ...EMPTY_STATE, ...parsed });
+      } catch (err) {
+        alert("匯入失敗：檔案格式不正確");
+      }
+    };
+    reader.readAsText(file);
+  };
+  const resetAll = () => {
+    if (window.confirm("這會清除所有資料並回到空白狀態，確定要繼續嗎？")) setData(EMPTY_STATE);
+  };
+  const restoreDemo = () => {
+    if (window.confirm("這會覆蓋目前資料並套用示範資料，確定要繼續嗎？")) setData(buildSeed());
+  };
+
+  return (
+    <div className="min-h-screen w-full bg-slate-50 text-slate-900" style={{ fontFeatureSettings: '"tnum"' }}>
+      {/* Mobile top bar (shown below lg, since the sidebar is hidden there) */}
+      <div className="lg:hidden flex items-center justify-between px-4 py-3 bg-white border-b border-slate-200 sticky top-0 z-30">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 rounded-lg bg-slate-900 flex items-center justify-center">
+            <Wallet size={14} className="text-white" />
+          </div>
+          <span className="font-semibold text-sm tracking-tight">財務控制中心</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button onClick={() => setShowSync(true)} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-slate-100">
+            <span className={`w-2 h-2 rounded-full ${syncStatus === "synced" ? "bg-emerald-500" : syncStatus === "syncing" ? "bg-amber-400" : syncStatus === "error" ? "bg-red-500" : "bg-slate-300"}`} />
+            <span className="text-xs text-slate-500">
+              {syncStatus === "synced" ? "已同步" : syncStatus === "syncing" ? "同步中" : syncStatus === "error" ? "同步失敗" : "離線"}
+            </span>
+          </button>
+          <button onClick={() => setShowMobileMenu(true)} className="p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg">
+            <Menu size={20} />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex">
+        <aside className="hidden lg:flex flex-col w-56 shrink-0 min-h-screen border-r border-slate-200 bg-white px-4 py-6">
+          <div className="flex items-center gap-2 px-2 mb-8">
+            <div className="w-8 h-8 rounded-lg bg-slate-900 flex items-center justify-center">
+              <Wallet size={16} className="text-white" />
+            </div>
+            <span className="font-semibold text-[15px] tracking-tight">財務控制中心</span>
+          </div>
+          <button onClick={() => setShowSync(true)} className="flex items-center gap-2 px-3 py-2 mb-4 rounded-lg border border-slate-200 hover:bg-slate-50 text-xs">
+            <span className={`w-2 h-2 rounded-full ${syncStatus === "synced" ? "bg-emerald-500" : syncStatus === "syncing" ? "bg-amber-400" : syncStatus === "error" ? "bg-red-500" : "bg-slate-300"}`} />
+            <span className="text-slate-600">
+              {syncStatus === "synced" ? "雲端已同步" : syncStatus === "syncing" ? "同步中…" : syncStatus === "error" ? "同步失敗" : "尚未連線"}
+            </span>
+          </button>
+          <nav className="space-y-0.5 text-sm">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 text-slate-900 font-medium">
+              <Landmark size={15} /> 總覽 Dashboard
+            </div>
+            <button onClick={() => setShowManage("txns")} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-500 hover:bg-slate-50 hover:text-slate-800">
+              <Coins size={15} /> 收支明細
+            </button>
+            <button onClick={() => setShowManage("cards")} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-500 hover:bg-slate-50 hover:text-slate-800">
+              <CardIcon size={15} /> 信用卡管理
+            </button>
+            <button onClick={() => setShowManage("assets")} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-500 hover:bg-slate-50 hover:text-slate-800">
+              <PiggyBank size={15} /> 資產管理
+            </button>
+            <button onClick={() => setShowManage("liabilities")} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-500 hover:bg-slate-50 hover:text-slate-800">
+              <TrendingDown size={15} /> 負債管理
+            </button>
+            <button onClick={() => setShowManage("fixed")} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-500 hover:bg-slate-50 hover:text-slate-800">
+              <Settings2 size={15} /> 固定支出設定
+            </button>
+            <button onClick={() => setShowManage("budgets")} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-500 hover:bg-slate-50 hover:text-slate-800">
+              <Bell size={15} /> 預算設定
+            </button>
+          </nav>
+          <div className="mt-auto space-y-1 pt-6 border-t border-slate-100">
+            <button onClick={exportJSON} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-500 hover:bg-slate-50 hover:text-slate-800 text-xs">
+              <Download size={14} /> 匯出 JSON
+            </button>
+            <button onClick={exportCSV} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-500 hover:bg-slate-50 hover:text-slate-800 text-xs">
+              <Download size={14} /> 匯出 CSV
+            </button>
+            <button onClick={() => fileInputRef.current?.click()} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-500 hover:bg-slate-50 hover:text-slate-800 text-xs">
+              <Upload size={14} /> 匯入資料
+            </button>
+            <input ref={fileInputRef} type="file" accept="application/json" className="hidden" onChange={(e) => e.target.files[0] && importJSON(e.target.files[0])} />
+            <button onClick={resetAll} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 text-xs">
+              <RotateCcw size={14} /> 清除所有資料
+            </button>
+          </div>
+        </aside>
+
+        <main className="flex-1 min-w-0 px-4 sm:px-6 lg:px-8 py-6 max-w-[1400px]">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+            <div>
+              <h1 className="text-xl font-semibold text-slate-900">財務總覽</h1>
+              <p className="text-xs text-slate-400 mt-0.5">打開網站的那一刻，就知道現在的財務狀況</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center bg-white border border-slate-200 rounded-xl overflow-hidden">
+                <button onClick={() => setMonthKey((m) => shiftMonth(m, -1))} className="p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-50">
+                  <ChevronLeft size={16} />
+                </button>
+                <span className="text-sm font-medium px-2 min-w-[96px] text-center tabular-nums">{monthLabel(monthKey)}</span>
+                <button onClick={() => setMonthKey((m) => shiftMonth(m, 1))} className="p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-50">
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+              <button onClick={() => setShowAdd(true)} className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white text-sm font-medium px-4 py-2.5 rounded-xl">
+                <Plus size={16} /> 新增
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 mb-4">
+            <MetricCard label="總資產" value={fmt(totalAssets)} accent={BLUE} icon={PiggyBank} sub="現金＋股票＋ETF等" />
+            <MetricCard label="總負債" value={fmt(totalLiabilities)} accent={RED} icon={TrendingDown} sub="房貸＋信用卡＋貸款" />
+            <MetricCard label="淨資產" value={fmt(netWorth)} accent={netWorth >= 0 ? GREEN : RED} icon={Landmark} delta={netWorthDelta} big />
+            <MetricCard label="本月收入" value={fmt(income)} accent={GREEN} icon={ArrowUpRight} delta={income - prevIncome} />
+            <MetricCard label="本月支出" value={fmt(expense)} accent={RED} icon={ArrowDownRight} delta={expense - prevExpense} invert breakdown={expenseBreakdownDisplay} />
+            <MetricCard label="本月剩餘" value={fmt(remaining)} accent={remaining >= 0 ? GREEN : RED} icon={Coins} sub={`儲蓄率 ${pctStr(savingsRate)}`} delta={remaining - prevRemaining} />
+          </div>
+
+          <Card className="mb-4">
+            <SectionTitle right={<span className="text-xs text-slate-400">近 6 個月</span>}>本月現金流</SectionTitle>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+              <div className="flex items-center gap-3 md:col-span-1">
+                <div className="flex-1 space-y-2 text-sm">
+                  <div className="flex justify-between"><span className="text-slate-500">收入</span><span className="font-medium tabular-nums text-emerald-600">{fmt(income)}</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">支出</span><span className="font-medium tabular-nums text-red-600">-{fmt(expense)}</span></div>
+                  <div className="h-px bg-slate-100" />
+                  <div className="flex justify-between"><span className="text-slate-700 font-medium">剩餘</span><span className={`font-semibold tabular-nums ${remaining >= 0 ? "text-emerald-600" : "text-red-600"}`}>{fmtSigned(remaining)}</span></div>
+                </div>
+              </div>
+              <div className="md:col-span-3 h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ComposedChart data={cashFlowData} margin={{ top: 5, right: 8, left: -20, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                    <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} />
+                    <Tooltip formatter={(v) => fmt(v)} contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0" }} />
+                    <Bar dataKey="收入" fill="#2f9e44" radius={[4, 4, 0, 0]} barSize={16} />
+                    <Bar dataKey="支出" fill="#e03131" radius={[4, 4, 0, 0]} barSize={16} />
+                    <Line type="monotone" dataKey="剩餘" stroke="#3b5bdb" strokeWidth={2} dot={{ r: 3 }} />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </Card>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+            <Card>
+              <SectionTitle>本月支出結構</SectionTitle>
+              {donutData.length === 0 ? (
+                <EmptyHint text="本月尚無支出紀錄" />
+              ) : (
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <div className="w-40 h-40 shrink-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={donutData} dataKey="value" nameKey="name" innerRadius={45} outerRadius={70} paddingAngle={2}>
+                          {donutData.map((d, i) => <Cell key={i} fill={CAT_COLOR[d.name] || "#94a3b8"} />)}
+                        </Pie>
+                        <Tooltip formatter={(v) => fmt(v)} contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0" }} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex-1 w-full space-y-2">
+                    {expenseByCategory.sort((a, b) => b.amount - a.amount).map((c) => (
+                      <div key={c.category} className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: CAT_COLOR[c.category] }} />
+                          <span className="text-slate-600 truncate">{c.category}</span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="tabular-nums font-medium text-slate-800">{fmt(c.amount)}</span>
+                          <span className="text-[11px] text-slate-400 w-10 text-right">{pctStr(c.pctOfExpense)}</span>
+                          <Trend delta={c.amount - c.prevAmount} invert />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </Card>
+
+            <Card>
+              <SectionTitle right={<span className="text-xs text-slate-400">共 {creditCards.length} 張</span>}>信用卡</SectionTitle>
+              <div className="space-y-2.5">
+                {creditCards.map((c) => {
+                  const d = c.dueDate ? daysUntil(c.dueDate) : null;
+                  return (
+                    <div key={c.id} className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2.5">
+                      <div>
+                        <div className="text-sm font-medium text-slate-800">{c.name}</div>
+                        <div className="text-xs text-slate-400 mt-0.5">本期 {fmt(c.currentAmount)} · 未繳 {fmt(c.unpaidAmount)}</div>
+                      </div>
+                      {c.unpaidAmount > 0 && d !== null && d <= 5 && (
+                        <span className={`text-[11px] font-medium px-2 py-1 rounded-full ${d <= 3 ? "bg-red-50 text-red-600" : "bg-amber-50 text-amber-600"}`}>
+                          ⚠ {d <= 0 ? "已到期" : `${d} 天後到期`}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+                {creditCards.length === 0 && <EmptyHint text="尚未新增信用卡" />}
+              </div>
+              <div className="grid grid-cols-2 gap-3 mt-3 pt-3 border-t border-slate-100">
+                <div>
+                  <div className="text-xs text-slate-400">信用卡總消費</div>
+                  <div className="text-lg font-semibold tabular-nums text-slate-800">{fmt(totalCardCurrent)}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-slate-400">信用卡未繳</div>
+                  <div className="text-lg font-semibold tabular-nums text-red-600">{fmt(totalCardUnpaid)}</div>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          <Card className="mb-4">
+            <SectionTitle right={<button onClick={generateFixedForMonth} className="text-xs font-medium text-slate-500 hover:text-slate-800 border border-slate-200 rounded-lg px-3 py-1.5">提前產生</button>}>
+              每月固定支出
+            </SectionTitle>
+            <p className="text-xs text-slate-400 -mt-3 mb-3">到了每個項目設定的日期，會自動產生成一筆支出；不想等的話可以按「提前產生」。</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {fixedExpenses.map((f) => (
+                <div key={f.id} className="rounded-xl border border-slate-100 p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-slate-600">{f.name}</span>
+                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${f.generatedMonths?.includes(monthKey) ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"}`}>
+                      {f.generatedMonths?.includes(monthKey) ? "已支付" : "預計"}
+                    </span>
+                  </div>
+                  <div className="text-lg font-semibold tabular-nums text-slate-800 mt-1">{fmt(f.amount)}</div>
+                </div>
+              ))}
+              {fixedExpenses.length === 0 && <EmptyHint text="尚未設定固定支出" />}
+            </div>
+            <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 text-sm">
+              <span className="text-slate-500">固定支出合計 <span className="font-semibold text-slate-800">{fmt(fixedTotal)}</span></span>
+              <span className="text-slate-500">占本月收入 <span className={`font-semibold ${fixedRatio > 0.6 ? "text-amber-600" : "text-slate-800"}`}>{pctStr(fixedRatio)}</span></span>
+            </div>
+          </Card>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+            <Card>
+              <SectionTitle>我的資產</SectionTitle>
+              <div className="space-y-2.5">
+                {assets.map((a) => (
+                  <div key={a.id}>
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span className="text-slate-600">{a.name}</span>
+                      <span className="font-medium tabular-nums text-slate-800">{fmt(a.amount)}</span>
+                    </div>
+                    <div className="w-full h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${totalAssets > 0 ? (a.amount / totalAssets) * 100 : 0}%`, backgroundColor: ASSET_COLOR[a.category] || BLUE }} />
+                    </div>
+                  </div>
+                ))}
+                {assets.length === 0 && <EmptyHint text="尚未新增資產" />}
+              </div>
+              <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 text-sm">
+                <span className="text-slate-500">總資產</span>
+                <span className="font-semibold tabular-nums text-slate-900">{fmt(totalAssets)}</span>
+              </div>
+            </Card>
+
+            <Card>
+              <SectionTitle>我的負債</SectionTitle>
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-600 flex items-center gap-1.5">
+                    信用卡未繳
+                    <span className="text-[10px] text-slate-400">（同步自信用卡）</span>
+                  </span>
+                  <span className="font-medium tabular-nums text-slate-800">{fmt(totalCardUnpaid)}</span>
+                </div>
+                {liabilities.filter((l) => l.category !== "信用卡未繳").map((l) => (
+                  <div key={l.id} className="flex items-center justify-between text-sm">
+                    <span className="text-slate-600">{l.name}</span>
+                    <span className="font-medium tabular-nums text-slate-800">{fmt(l.amount)}</span>
+                  </div>
+                ))}
+                {liabilities.filter((l) => l.category !== "信用卡未繳").length === 0 && <EmptyHint text="尚未新增其他負債" />}
+              </div>
+              <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 text-sm">
+                <span className="text-slate-500">總負債</span>
+                <span className="font-semibold tabular-nums text-slate-900">{fmt(totalLiabilities)}</span>
+              </div>
+              <div className="flex items-center justify-between mt-1 text-xs">
+                <span className="text-slate-400">負債 / 資產</span>
+                <span className={`font-medium ${debtRatio > 0.6 ? "text-red-600" : "text-slate-500"}`}>{pctStr(debtRatio)}</span>
+              </div>
+            </Card>
+          </div>
+
+          <Card className="mb-4">
+            <SectionTitle right={<span className="text-xs text-slate-400">過去 12 個月</span>}>淨資產趨勢</SectionTitle>
+            <div className="h-56">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={nwTrendData} margin={{ top: 5, right: 8, left: -10, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="nwGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={BLUE} stopOpacity={0.25} />
+                      <stop offset="100%" stopColor={BLUE} stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} domain={["auto", "auto"]} tickFormatter={(v) => (v / 10000).toFixed(0) + "萬"} />
+                  <Tooltip formatter={(v) => fmt(v)} contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e2e8f0" }} />
+                  <Area type="monotone" dataKey="淨資產" stroke={BLUE} strokeWidth={2.5} fill="url(#nwGrad)" connectNulls dot={{ r: 3 }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+            <Card>
+              <SectionTitle>本月預算</SectionTitle>
+              <div className="space-y-4">
+                {budgets.map((b) => {
+                  const spent = curTxns.filter((t) => t.type === "expense" && t.category === b.category).reduce((s, t) => s + Number(t.amount || 0), 0);
+                  const p = b.limit > 0 ? spent / b.limit : 0;
+                  return (
+                    <div key={b.id}>
+                      <div className="flex items-center justify-between text-sm mb-1.5">
+                        <span className="text-slate-600">{b.category}</span>
+                        <span className="tabular-nums text-slate-500">{fmt(spent)} / {fmt(b.limit)}</span>
+                      </div>
+                      <ProgressBar value={spent} max={b.limit} color={CAT_COLOR[b.category]} />
+                    </div>
+                  );
+                })}
+                {budgets.length === 0 && <EmptyHint text="尚未設定預算" />}
+              </div>
+            </Card>
+
+            <div className="space-y-4">
+              <Card>
+                <SectionTitle>財務健康</SectionTitle>
+                <div className="flex items-center gap-4 mb-3">
+                  <div className="text-3xl font-bold tabular-nums" style={{ color: healthColor }}>{score}<span className="text-base text-slate-300 font-medium"> / 100</span></div>
+                  <span className="text-xs font-medium px-2 py-1 rounded-full" style={{ color: healthColor, backgroundColor: healthColor + "1a" }}>
+                    {score >= 80 ? "🟢" : score >= 60 ? "🟡" : "🔴"} {healthLabel}
+                  </span>
+                </div>
+                <div className="space-y-1 text-xs">
+                  {reasons.map((r, i) => <div key={i} className="flex items-center gap-1.5 text-emerald-700"><CheckCircle2 size={12} /> {r}</div>)}
+                  {warnings.map((w, i) => <div key={i} className="flex items-center gap-1.5 text-amber-600"><AlertTriangle size={12} /> {w}</div>)}
+                </div>
+              </Card>
+              <Card>
+                <SectionTitle>財務提醒</SectionTitle>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {alerts.length === 0 && <EmptyHint text="目前沒有提醒事項" />}
+                  {alerts.map((a, i) => (
+                    <div key={i} className="flex items-start gap-2 text-xs text-slate-600">
+                      {alertIcon(a.level)}
+                      <span>{a.text}</span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+          </div>
+        </main>
+      </div>
+
+      {showAdd && (
+        <QuickAddModal
+          onClose={() => setShowAdd(false)}
+          onAddTransaction={addTransaction}
+          onAddAsset={addAsset}
+          onAddLiability={addLiability}
+          creditCards={creditCards}
+          onCardSpend={cardSpend}
+        />
+      )}
+
+      {showManage && (
+        <ManageDrawer
+          type={showManage}
+          onClose={() => setShowManage(null)}
+          assets={assets} setAssets={setAssets}
+          liabilities={liabilities} setLiabilities={setLiabilities}
+          creditCards={creditCards} setCreditCards={setCreditCards}
+          fixedExpenses={fixedExpenses} setFixedExpenses={setFixedExpenses}
+          budgets={budgets} setBudgets={setBudgets}
+          transactions={curTxns} allTransactions={transactions} setTransactions={setTransactions}
+          monthKey={monthKey}
+          restoreDemo={restoreDemo}
+        />
+      )}
+
+      {showMobileMenu && (
+        <MobileMenu
+          onClose={() => setShowMobileMenu(false)}
+          onNavigate={(key) => { setShowManage(key); setShowMobileMenu(false); }}
+          onExportJSON={() => { exportJSON(); setShowMobileMenu(false); }}
+          onExportCSV={() => { exportCSV(); setShowMobileMenu(false); }}
+          onImportClick={() => { fileInputRef.current?.click(); setShowMobileMenu(false); }}
+          onReset={() => { resetAll(); setShowMobileMenu(false); }}
+          onSync={() => { setShowSync(true); setShowMobileMenu(false); }}
+        />
+      )}
+
+      {showSync && (
+        <SyncModal
+          onClose={() => setShowSync(false)}
+          syncCode={syncCode}
+          syncStatus={syncStatus}
+          onSwitchCode={switchSyncCode}
+          cloudHistory={cloudHistory}
+          onRestore={restoreVersion}
+        />
+      )}
+
+      {conflict && (
+        <ConflictModal
+          conflict={conflict}
+          onChooseLocal={resolveConflictWithLocal}
+          onChooseRemote={resolveConflictWithRemote}
+        />
+      )}
+    </div>
+  );
+}
+
+function MobileMenu({ onClose, onNavigate, onExportJSON, onExportCSV, onImportClick, onReset, onSync }) {
+  const navItems = [
+    { key: "txns", label: "收支明細", icon: Coins },
+    { key: "cards", label: "信用卡管理", icon: CardIcon },
+    { key: "assets", label: "資產管理", icon: PiggyBank },
+    { key: "liabilities", label: "負債管理", icon: TrendingDown },
+    { key: "fixed", label: "固定支出設定", icon: Settings2 },
+    { key: "budgets", label: "預算設定", icon: Bell },
+  ];
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/40" onClick={onClose}>
+      <div className="bg-white w-72 max-w-[85vw] h-full overflow-y-auto shadow-xl flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-4 border-b border-slate-100">
+          <span className="font-semibold text-sm text-slate-800">選單</span>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 text-slate-400"><X size={18} /></button>
+        </div>
+        <button onClick={onSync} className="mx-3 mt-3 flex items-center gap-2.5 px-3 py-3 rounded-lg border border-slate-200 hover:bg-slate-50 text-left text-sm text-slate-600">
+          <CloudIcon size={16} /> 雲端同步設定
+        </button>
+        <nav className="p-3 space-y-0.5 text-sm">
+          {navItems.map((item) => (
+            <button
+              key={item.key}
+              onClick={() => onNavigate(item.key)}
+              className="w-full flex items-center gap-2.5 px-3 py-3 rounded-lg text-slate-600 hover:bg-slate-50 active:bg-slate-100 text-left"
+            >
+              <item.icon size={16} /> {item.label}
+            </button>
+          ))}
+        </nav>
+        <div className="mt-auto p-3 space-y-0.5 border-t border-slate-100 text-sm">
+          <button onClick={onExportJSON} className="w-full flex items-center gap-2.5 px-3 py-3 rounded-lg text-slate-600 hover:bg-slate-50 active:bg-slate-100 text-left">
+            <Download size={16} /> 匯出 JSON（備份）
+          </button>
+          <button onClick={onExportCSV} className="w-full flex items-center gap-2.5 px-3 py-3 rounded-lg text-slate-600 hover:bg-slate-50 active:bg-slate-100 text-left">
+            <Download size={16} /> 匯出 CSV（收支明細）
+          </button>
+          <button onClick={onImportClick} className="w-full flex items-center gap-2.5 px-3 py-3 rounded-lg text-slate-600 hover:bg-slate-50 active:bg-slate-100 text-left">
+            <Upload size={16} /> 匯入資料
+          </button>
+          <button onClick={onReset} className="w-full flex items-center gap-2.5 px-3 py-3 rounded-lg text-red-500 hover:bg-red-50 active:bg-red-100 text-left">
+            <RotateCcw size={16} /> 清除所有資料
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SyncModal({ onClose, syncCode, syncStatus, onSwitchCode, cloudHistory, onRestore }) {
+  const [joinCode, setJoinCode] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [checkResult, setCheckResult] = useState(null); // {status:'loading'|'ok'|'notfound'|'error', ...}
+
+  const copyCode = async () => {
+    try {
+      await navigator.clipboard.writeText(syncCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (e) {
+      // clipboard API may be unavailable; user can still select the text manually
+    }
+  };
+
+  const checkCloud = async () => {
+    setCheckResult({ status: "loading" });
+    if (!firestoreDb) {
+      setCheckResult({ status: "error", message: "尚未連上 Firebase（firebase SDK 沒有載入成功）" });
+      return;
+    }
+    try {
+      const docRef = firestoreDb.collection("finance-dashboards").doc(syncCode);
+      const snap = await docRef.get({ source: "server" }); // force a real round trip to the server, ignore local cache
+      if (!snap.exists) {
+        setCheckResult({ status: "notfound" });
+        return;
+      }
+      const remote = snap.data();
+      const parsed = JSON.parse(remote.payload);
+      const totalAssets = (parsed.assets || []).reduce((s, a) => s + Number(a.amount || 0), 0);
+      const cardUnpaid = (parsed.creditCards || []).reduce((s, c) => s + Number(c.unpaidAmount || 0), 0);
+      const totalLiabilities = (parsed.liabilities || []).filter((l) => l.category !== "信用卡未繳").reduce((s, l) => s + Number(l.amount || 0), 0) + cardUnpaid;
+      const txnCount = (parsed.transactions || []).length;
+      const updatedAt = remote.updatedAt && remote.updatedAt.toDate ? remote.updatedAt.toDate() : null;
+      setCheckResult({ status: "ok", totalAssets, totalLiabilities, txnCount, updatedAt });
+    } catch (e) {
+      setCheckResult({ status: "error", message: e.message || String(e) });
+    }
+  };
+
+  const statusLabel = syncStatus === "synced" ? "已同步到雲端" : syncStatus === "syncing" ? "同步中…" : syncStatus === "error" ? "同步失敗（請檢查網路）" : "尚未連線";
+  const statusColor = syncStatus === "synced" ? "text-emerald-600" : syncStatus === "syncing" ? "text-amber-600" : syncStatus === "error" ? "text-red-600" : "text-slate-400";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-xl max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 pt-5 sticky top-0 bg-white">
+          <h3 className="text-base font-semibold text-slate-800">雲端同步</h3>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 text-slate-400"><X size={18} /></button>
+        </div>
+        <div className="p-5 space-y-5">
+          <div className="flex items-center justify-between">
+            <div className={`text-sm font-medium ${statusColor}`}>● {statusLabel}</div>
+            <button onClick={checkCloud} className="text-xs font-medium text-slate-600 border border-slate-300 rounded-lg px-2.5 py-1.5 hover:bg-slate-50">
+              檢查雲端資料
+            </button>
+          </div>
+
+          {checkResult && (
+            <div className="text-xs rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-1">
+              {checkResult.status === "loading" && <div className="text-slate-500">正在向 Firebase 伺服器確認中…</div>}
+              {checkResult.status === "notfound" && <div className="text-amber-600">雲端目前還沒有這組同步碼的資料（可能還沒同步過，或規則剛發布還在生效）。</div>}
+              {checkResult.status === "error" && <div className="text-red-600">檢查失敗：{checkResult.message}</div>}
+              {checkResult.status === "ok" && (
+                <>
+                  <div className="text-emerald-700 font-medium">✓ 已確認雲端伺服器上真的有這筆資料</div>
+                  <div className="flex justify-between text-slate-600"><span>雲端總資產</span><span className="tabular-nums font-medium">{fmt(checkResult.totalAssets)}</span></div>
+                  <div className="flex justify-between text-slate-600"><span>雲端總負債</span><span className="tabular-nums font-medium">{fmt(checkResult.totalLiabilities)}</span></div>
+                  <div className="flex justify-between text-slate-600"><span>雲端收支筆數</span><span className="tabular-nums font-medium">{checkResult.txnCount} 筆</span></div>
+                  <div className="flex justify-between text-slate-400"><span>雲端最後更新</span><span>{checkResult.updatedAt ? checkResult.updatedAt.toLocaleString("zh-TW") : "未知"}</span></div>
+                  <div className="text-slate-400 pt-1">把上面「雲端總資產／總負債」對照畫面上的數字，一樣就代表真的同步成功了。</div>
+                </>
+              )}
+            </div>
+          )}
+
+          <div>
+            <div className="text-xs font-medium text-slate-500 mb-1.5">這台裝置的同步碼</div>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 font-mono text-sm bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 select-all break-all">{syncCode}</div>
+              <button onClick={copyCode} className="text-xs font-medium text-white bg-slate-900 rounded-lg px-3 py-2 shrink-0">
+                {copied ? "已複製" : "複製"}
+              </button>
+            </div>
+            <p className="text-xs text-slate-400 mt-2">把這組碼貼到其他裝置的「使用其他同步碼」欄位，兩邊就會看到同一份資料。</p>
+          </div>
+
+          <div className="pt-4 border-t border-slate-100">
+            <div className="text-xs font-medium text-slate-500 mb-1.5">使用其他同步碼（在別的裝置設定過後，貼在這裡）</div>
+            <div className="flex items-center gap-2">
+              <input
+                value={joinCode}
+                onChange={(e) => setJoinCode(e.target.value)}
+                placeholder="貼上同步碼"
+                className="flex-1 text-sm border border-slate-300 rounded-lg px-3 py-2 font-mono"
+              />
+              <button
+                onClick={() => {
+                  if (!joinCode.trim()) return;
+                  if (window.confirm("切換同步碼後，畫面會改成顯示該同步碼底下的資料，確定要繼續嗎？")) {
+                    onSwitchCode(joinCode.trim());
+                    onClose();
+                  }
+                }}
+                className="text-xs font-medium text-white bg-slate-900 rounded-lg px-3 py-2 shrink-0"
+              >
+                切換
+              </button>
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-slate-100">
+            <div className="text-xs font-medium text-slate-500 mb-1.5">版本記錄（保留最近 3 次被覆蓋前的資料，可以還原）</div>
+            {(!cloudHistory || cloudHistory.length === 0) && (
+              <div className="text-xs text-slate-400">目前沒有歷史版本</div>
+            )}
+            <div className="space-y-2">
+              {(cloudHistory || []).map((h, i) => {
+                const s = summarizePayload(h.payload);
+                return (
+                  <div key={i} className="flex items-center justify-between text-xs border border-slate-200 rounded-lg px-3 py-2">
+                    <div>
+                      <div className="text-slate-600">{fmtSyncTime(h.updatedAt)}</div>
+                      <div className="text-slate-400">淨資產 {s ? fmt(s.netWorth) : "—"} ・ {s ? s.txnCount : "—"} 筆收支</div>
+                    </div>
+                    <button onClick={() => onRestore(h)} className="text-xs font-medium text-white bg-slate-900 rounded-lg px-2.5 py-1.5 shrink-0">
+                      還原
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConflictModal({ conflict, onChooseLocal, onChooseRemote }) {
+  const localSummary = summarizePayload(conflict.local.payload);
+  const remoteSummary = summarizePayload(conflict.remote.payload);
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-md shadow-xl p-5">
+        <h3 className="text-base font-semibold text-slate-800 mb-1">這台裝置跟雲端的資料不一樣</h3>
+        <p className="text-xs text-slate-500 mb-4">請選擇要保留哪一份。沒被選到的那份會存進「版本記錄」，之後還是可以在「雲端同步」視窗裡還原回來，不會真的不見。</p>
+        <div className="space-y-3">
+          <button onClick={onChooseLocal} className="w-full text-left border border-slate-200 rounded-xl p-3 hover:border-slate-400 hover:bg-slate-50">
+            <div className="text-sm font-medium text-slate-800 mb-1">使用「這台裝置」的資料（上傳，蓋過雲端）</div>
+            <div className="text-xs text-slate-500">淨資產 {localSummary ? fmt(localSummary.netWorth) : "—"} ・ {localSummary ? localSummary.txnCount : "—"} 筆收支</div>
+            <div className="text-xs text-slate-400 mt-1">最後修改：{fmtSyncTime(conflict.local.updatedAt)}</div>
+          </button>
+          <button onClick={onChooseRemote} className="w-full text-left border border-slate-200 rounded-xl p-3 hover:border-slate-400 hover:bg-slate-50">
+            <div className="text-sm font-medium text-slate-800 mb-1">使用「雲端」的資料（下載，蓋過這台裝置）</div>
+            <div className="text-xs text-slate-500">淨資產 {remoteSummary ? fmt(remoteSummary.netWorth) : "—"} ・ {remoteSummary ? remoteSummary.txnCount : "—"} 筆收支</div>
+            <div className="text-xs text-slate-400 mt-1">最後修改：{fmtSyncTime(conflict.remote.updatedAt)}</div>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
